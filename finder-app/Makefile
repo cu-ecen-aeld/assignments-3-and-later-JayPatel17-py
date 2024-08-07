@@ -1,0 +1,17 @@
+#native compiler
+NC=gcc
+#cross compiler
+CC=aarch64_be-none-linux-gnu-
+CFLAGS= -Wall -g
+TARGET=writer
+SRC=writer.c
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(SRC)
+	$(NC) $(CFLAGS) -o $(TARGET) $(SRC)
+
+clean:
+	rm -f $(TARGET) *.o

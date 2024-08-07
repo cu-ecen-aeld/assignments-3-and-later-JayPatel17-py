@@ -1,0 +1,4 @@
+Using built-in specs.
+COLLECT_GCC=aarch64_be-none-linux-gnu-gcc
+COLLECT_LTO_WRAPPER=/home/jaypatel/toolchain/arm-cross-compiler/gcc-arm-10.3-2021.07-x86_64-aarch64_be-none-linux-gnu/bin/../libexec/gcc/aarch64_be-none-linux-gnu/10.3.1/lto-wrapper
+/home/jaypatel/toolchain/arm-cross-compiler/gcc-arm-10.3-2021.07-x86_64-aarch64_be-none-linux-gnu/bin/../aarch64_be-none-linux-gnu/libc
