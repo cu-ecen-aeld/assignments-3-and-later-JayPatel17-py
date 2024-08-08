@@ -2,6 +2,11 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
+#define _XOPEN_SOURCE /* if we want WEXITSTATUS, etc. */
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
 bool do_system(const char *command);
 
 bool do_exec(int count, ...);
