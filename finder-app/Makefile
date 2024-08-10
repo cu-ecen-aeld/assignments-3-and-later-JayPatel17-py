@@ -11,7 +11,7 @@ SRC=writer.c
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-	$(NC) $(CFLAGS) -o $(TARGET) $(SRC)
+	${CC}$(NC) $(CFLAGS) -o $(TARGET) $(SRC)
 
 clean:
 	rm -f $(TARGET) *.o
