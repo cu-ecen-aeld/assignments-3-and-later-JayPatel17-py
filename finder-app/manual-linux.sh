@@ -15,6 +15,8 @@ ARCH=arm64
 #CROSS_COMPILE=aarch64-none-linux-gnu-
 CROSS_COMPILE=aarch64_be-none-linux-gnu-
 
+export PATH=$PATH:/home/jaypatel/toolchain/arm-cross-compiler/gcc-arm-10.3-2021.07-x86_64-aarch64_be-none-linux-gnu/bin
+
 if [ $# -lt 1 ]
 then
 	echo "Using default directory ${OUTDIR} for output"
