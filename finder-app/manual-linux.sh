@@ -38,10 +38,6 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
     
-    # step added for actin runner
-    # export toolchain 
-    export /home/jaypatel/toolchain/arm-cross-compiler/gcc-arm-10.3-2021.07-x86_64-aarch64_be-none-linux-gnu/bin
-
     # TODO: Add your kernel build steps here
     make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
     make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
@@ -84,11 +80,6 @@ else
     cd busybox
 fi
 
-
-# step added for actin runner
-# export toolchain 
-export /home/jaypatel/toolchain/arm-cross-compiler/gcc-arm-10.3-2021.07-x86_64-aarch64_be-none-linux-gnu/bin
-
 # TODO: Make and install busybox
 make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
 make CONFIG_PREFIX=${ROOTFS} ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
@@ -112,9 +103,6 @@ sudo mknod -m 666 ${ROOTFS}/dev/console c 5 1
 
 # TODO: Clean and build the writer utility
 cd "/home/jaypatel/coursera/Emb_Linux_Class/week_1/assignment-1-JayPatel17-py/finder-app"
-# step added for actin runner
-# export toolchain 
-export /home/jaypatel/toolchain/arm-cross-compiler/gcc-arm-10.3-2021.07-x86_64-aarch64_be-none-linux-gnu/bin
 make clean
 make all
 
