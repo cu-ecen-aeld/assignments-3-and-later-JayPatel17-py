@@ -11,7 +11,7 @@ KERNEL_VERSION=v5.1.10
 BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
-CROSS_COMPILE=aarch64_be-none-linux-gnu-
+CROSS_COMPILE=aarch64-none-linux-gnu-
 
 if [ $# -lt 1 ]
 then
@@ -88,8 +88,8 @@ ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
 echo "Adding library dependencies to rootfs"
-TOOLCHAIN_LIBC=/usr/local/arm-cross-compiler/install/gcc-arm-10.3-2021.07-x86_64-aarch64_be-none-linux-gnu/aarch64_be-none-linux-gnu/libc
-cp ${TOOLCHAIN_LIBC}/lib/ld-linux-aarch64_be.so.1 ${OUTDIR}/rootfs/lib/
+TOOLCHAIN_LIBC=/home/jay/Toolchain/arm-cross-compiler/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc
+cp ${TOOLCHAIN_LIBC}/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib/
 cp ${TOOLCHAIN_LIBC}/lib64/libc.so.6 ${OUTDIR}/rootfs/lib64/
 cp ${TOOLCHAIN_LIBC}/lib64/libm.so.6 ${OUTDIR}/rootfs/lib64/
 cp ${TOOLCHAIN_LIBC}/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib64/
@@ -102,7 +102,7 @@ sudo mknod -m 666 ${OUTDIR}/rootfs/dev/console c 5 1
 
 # TODO: Clean and build the writer utility
 echo "Clean and build the writer utility"
-cd "/home/jaypatel/coursera/Emb_Linux_Class/week_1/assignment-1-JayPatel17-py/finder-app"
+cd "/home/jay/Coursera/linux_devp/assignments-3-and-later-JayPatel17-py/finder-app"
 make clean
 make all
 
@@ -114,7 +114,7 @@ sync
 
 # TODO: Chown the root directory
 echo "Chown the root dirctory"
-sudo chown -R root:root ${OUTDIR}/rootfs
+#sudo chown -R root:root ${OUTDIR}/rootfs
 
 # TODO: Create initramfs.cpio.gz
 cd "${OUTDIR}/rootfs"

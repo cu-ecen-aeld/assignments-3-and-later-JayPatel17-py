@@ -1,7 +1,7 @@
 #native compiler
 NC=gcc
 #cross compiler
-CC=aarch64_be-none-linux-gnu-
+CC=aarch64-none-linux-gnu-
 CFLAGS= -Wall -g
 TARGET=writer
 SRC=writer.c
