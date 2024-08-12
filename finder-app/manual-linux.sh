@@ -115,7 +115,7 @@ cp -r -p writer finder.sh conf/username.txt conf/assignment.txt finder-test.sh a
 sync
 
 # TODO: Chown the root directory
-echo "Chown the root dirctory"
+#echo "Chown the root dirctory"
 #sudo chown -R root:root ${OUTDIR}/rootfs
 
 # TODO: Create initramfs.cpio.gz
