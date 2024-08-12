@@ -103,7 +103,8 @@ sudo mknod -m 666 ${OUTDIR}/rootfs/dev/console c 5 1
 
 # TODO: Clean and build the writer utility
 echo "Clean and build the writer utility"
-cd "/home/jay/Coursera/linux_devp/assignments-3-and-later-JayPatel17-py/finder-app"
+FINDERAPP_DIR=`find /* -name "finder-app" -print -quit`
+cd $FINDERAPP_DIR
 make clean
 make all
 
