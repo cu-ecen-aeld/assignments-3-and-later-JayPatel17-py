@@ -5,8 +5,8 @@
 
 // Optional: use these functions to add debug or error prints to your application
 //#define DEBUG_LOG(msg,...)
-#define DEBUG_LOG(msg,...) printf("threading: " msg "\n" , ##__VA_ARGS__)
-#define ERROR_LOG(msg,...) printf("threading ERROR: " msg "\n" , ##__VA_ARGS__)
+#define DEBUG_LOG(msg,...) printf("DEBUG_LOG: " msg "\n" , ##__VA_ARGS__)
+#define ERROR_LOG(msg,...) printf("ERROR_LOG: " msg "\n" , ##__VA_ARGS__)
 
 void* threadfunc(void* thread_param)
 {
@@ -14,14 +14,25 @@ void* threadfunc(void* thread_param)
     // TODO: wait, obtain mutex, wait, release mutex as described by thread_data structure
     // hint: use a cast like the one below to obtain thread arguments from your parameter
     //struct thread_data* thread_func_args = (struct thread_data *) thread_param;
-    DEBUG_LOG("Thread received wait for ");
+    DEBUG_LOG("Thread_func started...");
     
-    //struct thread_data* thread_func_args = (struct thread_data *) thread_param;
-    //usleep((thread_func_args->td_wait_to_obtain_ms)*1);
+    struct thread_data* thread_param_args = (struct thread_data *) thread_param;
+    DEBUG_LOG("td_wait_to_obtain_ms = %d ms\n", thread_param_args->td_wait_to_obtain_ms);
+    /*
+        adding 20ms delay here is wrong method.
+        It may work in one mutex case.
+        it will fail when multiple mutex multiple threads.
+    */
+    usleep((thread_param_args->td_wait_to_obtain_ms)*1000);
+    thread_param_args->thread_complete_success=true;
     
-    pthread_exit(NULL);
+    while ( pthread_mutex_trylock(thread_param_args->td_mutex) );
+    pthread_mutex_unlock(thread_param_args->td_mutex);
+    
+    usleep((thread_param_args->td_wait_to_release_ms)*1000);
+        
+    pthread_exit(thread_param_args);
 }
-
 
 bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int wait_to_obtain_ms, int wait_to_release_ms)
 {
@@ -36,32 +47,21 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
     DEBUG_LOG("Allocating memory for thread_data");
     struct thread_data* thread_func_args = malloc(sizeof(struct thread_data));
 
-    //thread_func_args->td_wait_to_obtain_ms = wait_to_obtain_ms;
-    //thread_func_args->td_wait_to_release_ms = wait_to_release_ms;
+    thread_func_args->td_wait_to_obtain_ms = wait_to_obtain_ms;
+    thread_func_args->td_wait_to_release_ms = wait_to_release_ms;
+    thread_func_args->td_mutex = mutex;
 
-    //mutex init & lock has been done by calling function so not repeating
-    DEBUG_LOG("Creating thread");
-    if ( pthread_create(thread, NULL, threadfunc, &thread_func_args) != 0 ) {
-        ERROR_LOG("Error creating thread");
+    // NOTE : mutex init & lock has been done by calling function so not repeating
+    DEBUG_LOG("Creating thread...");
+    if ( pthread_create(thread, NULL, threadfunc, thread_func_args) != 0 )
+    {
+        ERROR_LOG("Error creating thread!!");
         free(thread_func_args);
         //Unloacking mutex as this failed to create thread
         pthread_mutex_unlock(mutex);
         return false;
     } // else thread creation successfull
-    //mutex unlock & destroy has been done by calling function so not repeating
-
-    // prinitng thread ID
-    DEBUG_LOG("Thread cereated successfully. Thread ID: %lu", *thread);
+    // NOTE : mutex unlock & destroy has been done by calling function so not repeating
     
-    free(thread_func_args);
-    DEBUG_LOG("Wait for the thread to finish");
-    if ( pthread_join(*thread, NULL) != 0 ) {
-        ERROR_LOG("Error joining thread");
-        return false;
-    }// else thread exited successfully
-    
-    // usleep((thread_func_args->td_wait_to_release_ms)*1);
-    thread_func_args->thread_complete_success=true;
     return true;
 }
-
