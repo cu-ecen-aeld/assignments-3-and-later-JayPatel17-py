@@ -18,10 +18,7 @@ jobs:
             with:
               path: /tmp/.buildx-cache
               key: ${{ runner.os }}-buildx-${{ github.sha }}
-                  
-          - name: Build and push Docker image
-            run: |
-              docker buildx build --cache-from=type=local,src=/tmp/.buildx-cache --cache-to=type=local,dest=/tmp/.buildx-cache --tag myimage:latest .
+        
           - uses: actions/checkout@v2
 
           - name: Checkout submodules
