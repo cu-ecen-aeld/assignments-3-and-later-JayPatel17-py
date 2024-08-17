@@ -89,8 +89,7 @@ ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
 echo "Adding library dependencies to rootfs"
-TOOLCHAIN_DIR=`dirname $(whereis aarch64-none-linux-gnu-gcc | cut -d " " -f2)`
-TOOLCHAIN_LIBC=${TOOLCHAIN_DIR}/../aarch64-none-linux-gnu/libc
+TOOLCHAIN_LIBC=$(${CROSS_COMPILE}gcc -print-sysroot)
 cp ${TOOLCHAIN_LIBC}/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib/
 cp ${TOOLCHAIN_LIBC}/lib64/libc.so.6 ${OUTDIR}/rootfs/lib64/
 cp ${TOOLCHAIN_LIBC}/lib64/libm.so.6 ${OUTDIR}/rootfs/lib64/
@@ -104,15 +103,15 @@ sudo mknod -m 666 ${OUTDIR}/rootfs/dev/console c 5 1
 
 # TODO: Clean and build the writer utility
 echo "Clean and build the writer utility"
-FINDERAPP_DIR=`find /* -name "finder-app" -print -quit`
-cd $FINDERAPP_DIR
+cd $FINDER_APP_DIR
 make clean
-make all
+make CROSS_COMPILE=${CROSS_COMPILE} all
 
 # TODO: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
 echo "Copy the finder related scripts and executables to the /home directory on the target rootfs"
-cp -r -p writer finder.sh conf/username.txt conf/assignment.txt finder-test.sh autorun-qemu.sh ${OUTDIR}/rootfs/home
+cp -r -p writer.o finder.sh conf/username.txt conf/assignment.txt finder-test.sh autorun-qemu.sh ${OUTDIR}/rootfs/home
+
 sync
 
 # TODO: Chown the root directory
