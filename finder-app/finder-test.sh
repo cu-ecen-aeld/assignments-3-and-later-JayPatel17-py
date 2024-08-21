@@ -58,13 +58,13 @@ do
 	${BR_USR_BIN}/writer.o "$WRITEDIR/${username}$i.txt" "$WRITESTR"
 done
 
-OUTPUTSTRING=$(${BR_USR_BIN}/finder.sh "$WRITEDIR" "$WRITESTR")
+OUTPUTSTRING=$(${BR_USR_BIN}/finder.sh "$WRITEDIR" "$WRITESTR" > /tmp/assignment4-result.txt )
 
 # remove temporary directories
 rm -rf /tmp/aeld-data
 
 set +e
-echo ${OUTPUTSTRING} | grep "${MATCHSTR}"
+cat /tmp/assignment4-result.txt | grep "${MATCHSTR}"
 if [ $? -eq 0 ]; then
 	echo "success"
 	exit 0
