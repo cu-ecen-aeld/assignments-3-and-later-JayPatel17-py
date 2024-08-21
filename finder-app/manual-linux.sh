@@ -111,10 +111,6 @@ make CROSS_COMPILE=${CROSS_COMPILE} all
 # on the target rootfs
 echo "Copy the finder related scripts and executables to the /home directory on the target rootfs"
 cp -r -p writer.o finder.sh conf/username.txt conf/assignment.txt finder-test.sh autorun-qemu.sh ${OUTDIR}/rootfs/home
-
-#added for buildroot
-cp -p wrier.o finder.sh finder-test.sh ../../../target/usr/bin/
-cp -p conf ../../../target/etc/finder-app
 sync
 
 # TODO: Chown the root directory

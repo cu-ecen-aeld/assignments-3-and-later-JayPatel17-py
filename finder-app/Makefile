@@ -9,7 +9,7 @@ CC := $(shell if which ${CROSS_COMPILE} > /dev/null 2>&1; then echo "${CROSS_COM
 # Compiler flags and other variables
 CFLAGS := -Wall -O2
 SRC := writer.c
-TARGET := writer.o
+TARGET := writer
 
 # Target rule
 all: $(TARGET)
