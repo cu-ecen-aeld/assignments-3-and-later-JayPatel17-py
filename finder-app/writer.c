@@ -30,23 +30,10 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-
-	unsigned int total_len = strlen(writefile)+strlen(writestr)+12;
-	char *debug_log = (char *)malloc(total_len);
-	if (file == NULL) {
-		syslog(LOG_WARNING,"Dynamic memory allocation failed!");
-	}
-	else {
-		strcpy(debug_log,"Writing ");
-		strcat(debug_log,writestr);
-		strcat(debug_log," to ");
-		strcat(debug_log,writefile);	
-		syslog(LOG_DEBUG, "%s", debug_log);
-	}
+	syslog(LOG_DEBUG, "Writing %s to %s writefile",writestr,writefile);
 	
 	fprintf(file, "%s", writestr);
 	
-	free(debug_log);	
 	fclose(file);
 	closelog();
 	return 0;
