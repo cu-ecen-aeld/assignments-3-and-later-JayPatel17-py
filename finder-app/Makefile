@@ -12,13 +12,13 @@ SRC := writer.c
 TARGET := writer
 
 # Target rule
-all: $(TARGET).o
+all: $(TARGET)
 
-$(TARGET).o: $(SRC)
+$(TARGET): $(SRC)
 	$(CC) $(CFLAGS) -o $@ $<
 
 clean:
-	rm -f $(TARGET).o
+	rm -f $(TARGET)
 
 .PHONY: all clean
 
