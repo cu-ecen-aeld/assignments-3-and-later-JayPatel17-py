@@ -55,7 +55,7 @@ fi
 
 for i in $( seq 1 $NUMFILES)
 do
-	${BR_USR_BIN}/writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
+	${BR_USR_BIN}/writer.o "$WRITEDIR/${username}$i.txt" "$WRITESTR"
 done
 
 OUTPUTSTRING=$(${BR_USR_BIN}/finder.sh "$WRITEDIR" "$WRITESTR")
