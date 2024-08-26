@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <netinet/in.h>
 
 #define PORT "9000"
 #define BACKLOG 10
@@ -28,8 +29,9 @@ struct addrinfo *servinfo, *p;
 
 // Variables for client
 struct sockaddr *addr;
-socklen_t addrlen = sizeof(addr);
-char s[INET6_ADDRSTRLEN]={0};
+struct sockaddr_in client_addr;
+socklen_t client_addrlen = sizeof(client_addr);
+char client_ip[INET_ADDRSTRLEN]={0};
 
 //Receive & sent data 
 char buffer[1024];
@@ -88,17 +90,18 @@ if (listen(sockfd, BACKLOG) == -1) {
 
 syslog(LOG_INFO, "Server is listening on port %s",PORT);
 
-new_sockfd = accept(sockfd, (struct sockaddr *)&addr, &addrlen);
+new_sockfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addrlen);
 if ( new_sockfd == -1 ) {
 	syslog(LOG_ERR, "%s", "Failed to accept connection...returning from here.");
         CLOSE(2);
 	return -1;
 }
-syslog(LOG_INFO, "%s", "Connection accepted");
-// Convert the IP address to a human-readable form
-//inet_ntop(addr->sa_family, (void *)&(((struct sockaddr_in *)&addr)->sin_addr), s, sizeof s);
 
-syslog(LOG_INFO, "Accepted connection from %s",s);
+// Convert the IP address to a human-readable form
+inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip, INET_ADDRSTRLEN);
+printf("Client connected from IP: %s, port: %d\n", client_ip, ntohs(client_addr.sin_port));
+
+syslog(LOG_INFO, "Accepted connection from %s",client_ip);
 
 //receive data
 bytes_received = recv(new_sockfd, buffer, sizeof(buffer)-1, 0);
