@@ -1,5 +1,5 @@
 # Check if CROSS_COMPILE is set, otherwise use gcc
-CROSS_COMPILE ?= aarch64-none-linux-gnu-
+#CROSS_COMPILE ?= aarch64-none-linux-gnu-
 
 #$(info STAGE1 CROSS_COMPILE = $(CROSS_COMPILE))
 

@@ -28,13 +28,12 @@ struct addrinfo hints;
 struct addrinfo *servinfo, *p;
 
 // Variables for client
-struct sockaddr *addr;
 struct sockaddr_in client_addr;
 socklen_t client_addrlen = sizeof(client_addr);
 char client_ip[INET_ADDRSTRLEN]={0};
 
 //Receive & sent data 
-char buffer[1024];
+char buffer[1024] = {0};
 ssize_t bytes_received, bytes_written, bytes_read, bytes_sent;
 
 // Starting syslog logger
@@ -47,52 +46,52 @@ hints.ai_family = AF_INET;
 hints.ai_socktype = SOCK_STREAM;
 
 if ( (status = getaddrinfo (NULL, PORT, &hints, &servinfo)) != 0 ) {
-	syslog(LOG_ERR, "%s", "getaddrinfo() failed...returning from here.");		
+	perror("getaddrinfo():");	
 	CLOSE(1);
 	return status;
 }
-syslog(LOG_INFO,"%s","getaddrinfo() succeed");
+printf("getaddrinfo() succeed\n");
 
 // Loop through all the results and bind to the first we can
 for (p = servinfo; p != NULL; p = p->ai_next) {
         // Create a socket
         if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-		syslog(LOG_WARNING, "%s","socket creation failed");		
+		perror("socket():");		
             	continue;
         }
 
         // Bind the socket to the address provided by getaddrinfo
         if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-		syslog(LOG_WARNING, "%s","socket binding to address failed");		
+		perror("bind():");
         	close(sockfd);
             	continue;
         }
-
+	printf("Loop through next structure\n");
         break; // If we get here, we have successfully bound the socket
 }
 
 if (p == NULL)
 {
-	syslog(LOG_ERR, "%s","Failed to bind socket...returning from here.");
+	perror("binding failed:");
 	CLOSE(2);
 	return -1;
 }
-syslog(LOG_INFO,"%s","binding succeed");
+printf("binding succeed\n");
 
 freeaddrinfo(servinfo);
 
 // Listen for incoming connections
 if (listen(sockfd, BACKLOG) == -1) {
-	syslog(LOG_ERR, "%s","Failed to listen on socket...returning from here.");
+	perror("listen():");
 	CLOSE(2);
 	return -1;
 }
 
-syslog(LOG_INFO, "Server is listening on port %s",PORT);
+printf("Server is listening on port %s\n",PORT);
 
 new_sockfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addrlen);
 if ( new_sockfd == -1 ) {
-	syslog(LOG_ERR, "%s", "Failed to accept connection...returning from here.");
+	perror("accept():");
         CLOSE(2);
 	return -1;
 }
@@ -103,34 +102,33 @@ printf("Client connected from IP: %s, port: %d\n", client_ip, ntohs(client_addr.
 
 syslog(LOG_INFO, "Accepted connection from %s",client_ip);
 
-//receive data
+//receive data from client
 bytes_received = recv(new_sockfd, buffer, sizeof(buffer)-1, 0);
-if (bytes_received < 0) {
-	syslog(LOG_ERR,"%s","Receive data failed...returning from here.");
+if (bytes_received == -1) {
+	perror("recv():");
         CLOSE(3);
 	return -1;
 }
-syslog(LOG_INFO,"%s","Data received");
-
-FILE *file;
-file = fopen("/var/tmp/aesdsocketdata","a+");
-
-if ( file == NULL) {
-	syslog(LOG_ERR, "%s","/var/tmp/aesdsocketdata file opening error...returning from here.");
-	CLOSE(4);
+else if (bytes_received == 0) {
+	printf("Connection closed!!\n");
+        CLOSE(3);
 	return -1;
 }
-printf("Debug %s\n",buffer);
-strcat(buffer,"\n");
-fputs(buffer,file);
-syslog(LOG_INFO,"%s","Data written to file");
 
-fclose(file);
+printf("bytes_received = %ld\n",bytes_received);
+printf("buffer = %s\n",buffer);
 
-txtfd = open("/var/tmp/aesdsocketdata", O_RDONLY);
+txtfd = open("/var/tmp/aesdsocketdata", O_RDWR | O_CREAT | O_TRUNC, 0664);
 if (txtfd == -1) {
-	syslog(LOG_ERR, "%s", "File opening error...returning from here.");
+	perror("open():");
 	CLOSE(3);
+	return -1;
+}
+
+bytes_written = write(txtfd, buffer, bytes_received);
+if (bytes_written == -1) {
+	perror("write():");
+	CLOSE(4);
 	return -1;
 }
 
@@ -138,19 +136,19 @@ if (txtfd == -1) {
 while ((bytes_read = read(txtfd, (char *)buffer, sizeof(buffer))) > 0) {
         bytes_sent = send(sockfd, buffer, bytes_read, 0);
         if (bytes_sent < 0) {
-	        syslog(LOG_ERR, "%s", "Data sent failuer!!");
-        	CLOSE(4);
+        	perror("send():");
+		CLOSE(4);
 		return -1;
         }
 }
 
 if (bytes_read < 0) {
-       	syslog(LOG_ERR, "%s", "file read failed!!");
+	perror("read():");
 	CLOSE(4);
 	return -1;
 }
 
-syslog(LOG_INFO,"%s","Data sent");
+printf("Data sent\n");
 
 CLOSE(0);
 return 0;
@@ -159,6 +157,7 @@ return 0;
 
 //Exit function
 void CLOSE(int n) {
+	printf("CLOSE(%d)\n",n);
 	switch(n){
 		case 1:
 			closelog();
