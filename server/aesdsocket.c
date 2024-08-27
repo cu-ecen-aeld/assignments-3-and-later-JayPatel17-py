@@ -46,52 +46,52 @@ hints.ai_family = AF_INET;
 hints.ai_socktype = SOCK_STREAM;
 
 if ( (status = getaddrinfo (NULL, PORT, &hints, &servinfo)) != 0 ) {
-	perror("getaddrinfo():");	
+	syslog(LOG_ERR, "%s", "getaddrinfo() failed...returning from here.");		
 	CLOSE(1);
 	return status;
 }
-printf("getaddrinfo() succeed\n");
+syslog(LOG_INFO,"%s","getaddrinfo() succeed");
 
 // Loop through all the results and bind to the first we can
 for (p = servinfo; p != NULL; p = p->ai_next) {
         // Create a socket
         if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-		perror("socket():");		
+		syslog(LOG_WARNING, "%s","socket creation failed");		
             	continue;
         }
 
         // Bind the socket to the address provided by getaddrinfo
         if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-		perror("bind():");
+		syslog(LOG_WARNING, "%s","socket binding to address failed");		
         	close(sockfd);
             	continue;
         }
-	printf("Loop through next structure\n");
+
         break; // If we get here, we have successfully bound the socket
 }
 
 if (p == NULL)
 {
-	perror("binding failed:");
+	syslog(LOG_ERR, "%s","Failed to bind socket...returning from here.");
 	CLOSE(2);
 	return -1;
 }
-printf("binding succeed\n");
+syslog(LOG_INFO,"%s","binding succeed");
 
 freeaddrinfo(servinfo);
 
 // Listen for incoming connections
 if (listen(sockfd, BACKLOG) == -1) {
-	perror("listen():");
+	syslog(LOG_ERR, "%s","Failed to listen on socket...returning from here.");
 	CLOSE(2);
 	return -1;
 }
 
-printf("Server is listening on port %s\n",PORT);
+syslog(LOG_INFO, "Server is listening on port %s",PORT);
 
 new_sockfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addrlen);
 if ( new_sockfd == -1 ) {
-	perror("accept():");
+	syslog(LOG_ERR, "%s", "Failed to accept connection...returning from here.");
         CLOSE(2);
 	return -1;
 }
@@ -105,7 +105,7 @@ syslog(LOG_INFO, "Accepted connection from %s",client_ip);
 //receive data from client
 bytes_received = recv(new_sockfd, buffer, sizeof(buffer)-1, 0);
 if (bytes_received == -1) {
-	perror("recv():");
+	syslog(LOG_ERR,"%s","Receive data failed...returning from here.");
         CLOSE(3);
 	return -1;
 }
@@ -118,16 +118,16 @@ else if (bytes_received == 0) {
 printf("bytes_received = %ld\n",bytes_received);
 printf("buffer = %s\n",buffer);
 
-txtfd = open("/var/tmp/aesdsocketdata", O_RDWR | O_CREAT | O_TRUNC, 0664);
+txtfd = open("/var/tmp/aesdsocketdata", O_RDWR | O_CREAT, 0664);
 if (txtfd == -1) {
-	perror("open():");
+	syslog(LOG_ERR, "%s", "File opening error...returning from here.");
 	CLOSE(3);
 	return -1;
 }
 
 bytes_written = write(txtfd, buffer, bytes_received);
 if (bytes_written == -1) {
-	perror("write():");
+	syslog(LOG_ERR, "%s", "writing to /var/tmp/aesdsocketdata failed!!");
 	CLOSE(4);
 	return -1;
 }
@@ -136,19 +136,19 @@ if (bytes_written == -1) {
 while ((bytes_read = read(txtfd, (char *)buffer, sizeof(buffer))) > 0) {
         bytes_sent = send(sockfd, buffer, bytes_read, 0);
         if (bytes_sent < 0) {
-        	perror("send():");
-		CLOSE(4);
+	        syslog(LOG_ERR, "%s", "Data sent failuer!!");
+        	CLOSE(4);
 		return -1;
         }
 }
 
 if (bytes_read < 0) {
-	perror("read():");
+       	syslog(LOG_ERR, "%s", "file read failed!!");
 	CLOSE(4);
 	return -1;
 }
 
-printf("Data sent\n");
+syslog(LOG_INFO,"%s","Data sent");
 
 CLOSE(0);
 return 0;
@@ -157,32 +157,21 @@ return 0;
 
 //Exit function
 void CLOSE(int n) {
-	printf("CLOSE(%d)\n",n);
+	printf("closing ");
 	switch(n){
-		case 1:
-			closelog();
-			break;
-		case 2:
-			close(sockfd);
-			closelog();
-			break;
-		case 3:
-        		close(new_sockfd);
-			close(sockfd);
-			closelog();
-			break;
-		case 4:
-			close(txtfd);
-        		close(new_sockfd);
-			close(sockfd);
-			closelog();
-			break;
 		case 0:
+		case 4:
+			printf(" txtfd,");
 			close(txtfd);
+		case 3:
+			printf(" new_sockfd,");
         		close(new_sockfd);
+		case 2:
+			printf(" sockfd,");
 			close(sockfd);
+		case 1:
+			printf(" syslog.\n");
 			closelog();
-			break;
 		default:
 			break;
 	}
