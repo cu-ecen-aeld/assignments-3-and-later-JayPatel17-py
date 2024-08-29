@@ -192,11 +192,11 @@ void signal_handler(int signum) {
 	switch(signum) {
 		case SIGINT:
 			printf("SIGINT: ");
-			CLOSE(0);
+			CLOSE(4);
 			break;
 		case SIGTERM:
 			printf("SIGTERM: ");
-			CLOSE(0);
+			CLOSE(4);
 			break;
 	}
 }
