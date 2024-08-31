@@ -7,7 +7,7 @@
 #include <signal.h>
 #include <syslog.h>
 
-#define PORT 9000
+#define PORT 8080
 #define BUFFER_SIZE 1024
 
 int server_fd;
@@ -32,7 +32,6 @@ int main() {
     int addrlen = sizeof(address);
     char buffer[BUFFER_SIZE] = {0};
     char client_ip[INET_ADDRSTRLEN]={0};
-    // const char *response = "Hello from server";
 
     // Create socket
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {

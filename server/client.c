@@ -4,13 +4,13 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
-#define PORT 9000
+#define PORT 8080
 #define BUFFER_SIZE 1024
 
 int main() {
     int sock = 0;
     struct sockaddr_in serv_addr;
-    char buffer[BUFFER_SIZE] = "Hello from\n client";
+    char buffer[BUFFER_SIZE] = "Hello from client\n";
 
     // Create socket
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
