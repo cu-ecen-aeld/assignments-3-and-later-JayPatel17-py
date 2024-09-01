@@ -2,21 +2,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <arpa/inet.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <syslog.h>
+#include <stdarg.h>
+#include <arpa/inet.h>
 
 #define PORT 9000
-#define BUFFER_SIZE 1024*4
+#define BUFFER_SIZE 1024*20
 
-int server_fd;
-int new_socket;
-int txtfd;
+int server_fd=0;
+int new_socket=0;
+int txtfd=0;
+int debug=0;
 
-void signal_handler(int signum);
-void daemonize();
+static void signal_handler(int signum);
+static void daemonize();
 static void socket_comm();
+static void closefds(int fd);
 
 struct sigaction sa;
 
@@ -28,7 +31,6 @@ char client_ip[INET_ADDRSTRLEN]={0};
 int main(int argc, char *argv[]) {
     // syslog looger
     openlog("aesdsocket", LOG_PID | LOG_CONS, LOG_USER);
-    syslog(LOG_INFO,"%s","aesdsocket application started...");
 
     //Set up signal action structure
     sa.sa_handler = signal_handler;
@@ -45,6 +47,18 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    // Set the socket options to reuse the address and port
+    /* (Warning on terminal) bind failed: Address already in use
+     * Sometime OS keep socket in TIME_WAIT state to handle delayed packets properly.
+     * SO_REUSEADDR option helps to bind socket even it is in TIME_WAIT state
+     * opt = 1, enables this option.
+    */
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+        perror("Error setting socket options");
+        closefds(2);
+    }
+
     // Set up address structure
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
@@ -53,19 +67,24 @@ int main(int argc, char *argv[]) {
     // Bind the socket
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
         perror("bind failed");
-        close(server_fd);
-        exit(EXIT_FAILURE);
+        closefds(2);
     }
 
     if (argc > 1) {
-		if (!strcmp(argv[1],"-d")) {
+        if (!strcmp(argv[1],"-d")) {
             daemonize();
+            while (1) {
+                socket_comm();
+            }
+        } else if (!strcmp(argv[1],"-v")) {
+            debug = 1;
             while (1) {
                 socket_comm();
             }
         }
 		else printf("[OPTION]: [USAGE]\n\n \
                     -d\t: run socket application as daemon\n \
+                    -v\t: print messages\n \
                     ./test -d\n\n");
 	}
 	else {
@@ -76,112 +95,106 @@ int main(int argc, char *argv[]) {
     }
 
     return 0;
-}
+} //main
+
 
 static void socket_comm() {
-    printf("Starting socket communication\n");
-    
     // Listen for incoming connections
     if (listen(server_fd, 3) < 0) {
         perror("listen");
-        close(server_fd);
-        exit(EXIT_FAILURE);
+        closefds(2);
     }
-
-    printf("Server listening on port %d\n", PORT);
+    if (debug) printf("Server listening on port %d\n\n", PORT);
 
     // Accept a connection
     if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
         perror("accept");
-        close(server_fd);
-        exit(EXIT_FAILURE);
+        closefds(2);
     }
 
     // Convert the IP address to a human-readable form
     inet_ntop(AF_INET, &(address.sin_addr), client_ip, INET_ADDRSTRLEN);
-    printf("Client connected from IP: %s, port: %d\n", client_ip, ntohs(address.sin_port));
+    if (debug) printf("Client connected from IP: %s, port: %d\n\n", client_ip, ntohs(address.sin_port));
 
     syslog(LOG_INFO,"Accepted connection from %s",client_ip);
     
     // Read data from client
-    ssize_t bytes_received = read(new_socket, buffer, BUFFER_SIZE);
+    ssize_t bytes_received = recv(new_socket, buffer, BUFFER_SIZE,0);
     if (bytes_received < 0) {
         perror("read");
+        closefds(3);
     } else {
-        buffer[bytes_received] = '\0';  // Null-terminate the received data
-        printf("Received from client: %s\n", buffer);
+        buffer[bytes_received] = '\n';  // New line-terminate the received data
     }
+    if (debug) printf(">> %ld bytes received from client\n", bytes_received);
 
     // Open
     if ((txtfd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND | O_CREAT , 0664)) < 0) {
         perror("open");
-        close(server_fd);
-        exit(EXIT_FAILURE);
+        closefds(3);
     }
     
     // Write
     ssize_t bytes_written = write(txtfd, buffer, bytes_received);
     if (bytes_written < 0) {
         perror("write");
-        close(server_fd);
-        close(txtfd);
-        exit(EXIT_FAILURE);
+        closefds(4);
     }
+    if (debug) printf(">> %ld bytes written to /var/tmp/aesdsocketdata\n", bytes_written);
     
+    // Move the file pointer to the end of the file
+    off_t fileSize = lseek(txtfd, 0, SEEK_END);
+    if (fileSize == -1) {
+        perror("lseek1");
+        closefds(4);
+    }
     // lseek
     if ( lseek(txtfd, 0, SEEK_SET) < 0 ) {
-        perror("lseel");
-        close(server_fd);
-        close(txtfd);
-        exit(EXIT_FAILURE);
+        perror("lseek2");
+        closefds(4);
     }
 
-    // Read 
-    ssize_t bytes_read;
-    while ((bytes_read = read(txtfd, buffer, BUFFER_SIZE)) > 0) {
-        // Write the read data to standard output (or process it as needed)
-        write(STDOUT_FILENO, buffer, bytes_read);
-    }
+    //Read 
+    ssize_t bytes_read = read(txtfd, buffer, fileSize);
     if (bytes_read < 0) {
         perror("read");
-        close(server_fd);
-        close(txtfd);
-        exit(EXIT_FAILURE);
+        closefds(4);
     }
-    buffer[bytes_read] = '\n';
+    if (debug) printf(">> %ld bytes read to /var/tmp/aesdsocketdata\n", bytes_read);
 
     // Send response to client
-    if (send(new_socket, buffer, bytes_received, 0) < 0) {
+    ssize_t bytes_sent = send(new_socket, buffer, bytes_read, 0);
+    if (bytes_sent < 0) {
         perror("send");
-    } else {
-        printf("Sent to client: %s\n", buffer);
+        closefds(4);
     }
+    if (debug) printf(">> %ld bytes sent to client\n", bytes_sent);
 
-    syslog(LOG_INFO,"Closed connection from %s",client_ip);
+    syslog(LOG_INFO,"Closed connection from %s\n\n",client_ip);
     close(new_socket);
+    close(txtfd);
 
-    printf("Connection closed\n");
-}
+    if (debug) printf("Connection closed from %s\n",client_ip);
+} //socket_comm
 
-void signal_handler(int signum) {
+
+static void signal_handler(int signum) {
 	printf("signal handler called\n");
 	switch(signum) {
 		case SIGINT:
-            printf("SIGINT called, closing aesdsocket application.\n");
-            close(new_socket);
-            close(server_fd);
-            closelog();
-			break;
+            if (debug) printf("\nSIGINT called, closing aesdsocket application.\n\n");
+            system("rm -f /var/tmp/aesdsocketdata");
+            closefds(4);
+            break;
 		case SIGTERM:
-            syslog(LOG_NOTICE, "%s", "SIGTERM called, closing aesdsocket application.");
-            close(new_socket);
-            close(server_fd);
-            closelog();
-			break;
+            if (debug) syslog(LOG_NOTICE, "%s", "SIGTERM called, closing aesdsocket application.");
+            system("rm -f /var/tmp/aesdsocketdata");
+            closefds(4);
+            break;
 	}
 }
 
-void daemonize() {
+static void daemonize() {
     pid_t pid;
 
     // Fork off the parent process
@@ -217,21 +230,32 @@ void daemonize() {
         exit(EXIT_SUCCESS);
     }
 
-    // // Set the working directory to the root directory
-    // if (chdir("/") < 0) {
-    //     exit(EXIT_FAILURE);
-    // }
-
     // Close all open file descriptors
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
 
-    // // Optionally, redirect file descriptors 0, 1, and 2 to /dev/null
-    // open("/dev/null", O_RDWR); // stdin (fd 0)
-    // dup(0);                    // stdout (fd 1)
-    // dup(0);                    // stderr (fd 2)
+    // Optionally, redirect file descriptors 0, 1, and 2 to /dev/null
+    open("/dev/null", O_RDWR); // stdin (fd 0)
+    dup(0);                    // stdout (fd 1)
+    dup(0);                    // stderr (fd 2)
 
     // The process is now daemonized
-}
+} //daemonize
 
+static void closefds(int fd) {
+    switch (fd)
+    {
+    case 4:
+        close(txtfd);
+    case 3:
+        close(new_socket);
+    case 2:
+        close(server_fd);
+    case 1:
+        closelog();
+    default:
+        sleep(1); // Sometime OS keep socket in TIME_WAIT state to handle delayed packets properly.
+        exit(fd);
+    }
+}
