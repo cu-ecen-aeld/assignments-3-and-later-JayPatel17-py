@@ -8,7 +8,7 @@ all: ${OBJ}
 	$(CC) $(CFLAGS) -o $@ $<
 
 clean:
-	rm -f *.o
+	rm -f aesdsocket
 
 .PHONY: all clean
 

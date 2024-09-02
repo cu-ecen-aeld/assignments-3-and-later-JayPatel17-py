@@ -9,7 +9,6 @@
 #include <arpa/inet.h>
 
 #define PORT 9000
-#define BUFFER_SIZE 1024*20
 
 int server_fd=0;
 int new_socket=0;
@@ -25,8 +24,10 @@ struct sigaction sa;
 
 struct sockaddr_in address;
 int addrlen = sizeof(address);
-char buffer[BUFFER_SIZE] = {0};
 char client_ip[INET_ADDRSTRLEN]={0};
+
+static size_t buffer_size = 2048;
+char *buffer;
 
 int main(int argc, char *argv[]) {
     // syslog looger
@@ -117,30 +118,49 @@ static void socket_comm() {
     if (debug) printf("Client connected from IP: %s, port: %d\n\n", client_ip, ntohs(address.sin_port));
 
     syslog(LOG_INFO,"Accepted connection from %s",client_ip);
-    
-    // Read data from client
-    ssize_t bytes_received = recv(new_socket, buffer, BUFFER_SIZE,0);
-    if (bytes_received < 0) {
-        perror("read");
-        closefds(3);
-    } else {
-        buffer[bytes_received] = '\n';  // New line-terminate the received data
-    }
-    if (debug) printf(">> %ld bytes received from client\n", bytes_received);
 
     // Open
     if ((txtfd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND | O_CREAT , 0664)) < 0) {
         perror("open");
         closefds(3);
     }
-    
-    // Write
-    ssize_t bytes_written = write(txtfd, buffer, bytes_received);
-    if (bytes_written < 0) {
-        perror("write");
-        closefds(4);
+
+    //Allocatin memory to buffer
+    buffer = (char *)malloc(buffer_size);
+    if (buffer == NULL) {
+        perror("malloc");
+        closefds(3);
     }
-    if (debug) printf(">> %ld bytes written to /var/tmp/aesdsocketdata\n", bytes_written);
+
+    //Read
+    ssize_t bytes_received;
+    while ((bytes_received = recv(new_socket, buffer, buffer_size, 0)) > 0) {
+        if (debug) printf(">> %ld bytes received from client\n", bytes_received);
+        // Write
+        ssize_t bytes_written = write(txtfd, buffer, bytes_received);
+        if (bytes_written < 0) {
+            perror("write");
+            closefds(4);
+        }
+        if (debug) printf(">> %ld bytes append to /var/tmp/aesdsocketdata\n", bytes_written);
+
+        if (bytes_received == (buffer_size)) {
+            // Incresing buffer size can be one solution but can be problemcatic with big data
+            // buffer_size += buffer_size;
+            // char *new_buffer = realloc(buffer, buffer_size);
+            // if (new_buffer == NULL) {
+            //     perror("malloc");
+            //     free(buffer);
+            //     closefds(3);
+            // }
+            // buffer = new_buffer;
+            memset(buffer, 0, buffer_size-1);
+            continue;
+        }
+        else {
+            break;
+        }
+    }
     
     // Move the file pointer to the end of the file
     off_t fileSize = lseek(txtfd, 0, SEEK_END);
@@ -154,27 +174,40 @@ static void socket_comm() {
         closefds(4);
     }
 
-    //Read 
-    ssize_t bytes_read = read(txtfd, buffer, fileSize);
-    if (bytes_read < 0) {
-        perror("read");
-        closefds(4);
-    }
-    if (debug) printf(">> %ld bytes read to /var/tmp/aesdsocketdata\n", bytes_read);
 
-    // Send response to client
-    ssize_t bytes_sent = send(new_socket, buffer, bytes_read, 0);
-    if (bytes_sent < 0) {
-        perror("send");
-        closefds(4);
-    }
-    if (debug) printf(">> %ld bytes sent to client\n", bytes_sent);
+    /* If I use realloc to increase size of buffer it may cause memory overwrite issue
+     * When enough heap memory not available.
+     * So, I am using same buffer with 2 MB size and writing data to file in ...
+     * read from file sent 2 MB by 2 MB back to client to eliminate heap issue
+     * n_bytes declare to do read from file so no extra bytes sent to client.
+    */
+    size_t n_bytes;
+    if (fileSize <= (buffer_size) ) n_bytes = fileSize;
+    else n_bytes = buffer_size;
 
-    syslog(LOG_INFO,"Closed connection from %s\n\n",client_ip);
-    close(new_socket);
-    close(txtfd);
+    ssize_t bytes_read;
+    while ((bytes_read = read(txtfd, buffer, n_bytes)) > 0) {
+        if (debug) printf(">> %ld bytes read from /var/tmp/aesdsocketdata\n", bytes_read);
+
+        ssize_t bytes_sent = send(new_socket, buffer, bytes_read, 0);
+        if (bytes_sent < 0) {
+            perror("send");
+            closefds(4);
+        }
+        if (debug) printf(">> %ld bytes sent to client\n\n", bytes_sent);
+
+        fileSize -= bytes_read;
+        if (fileSize == 0) break;
+        if (fileSize <= (buffer_size) ) n_bytes = fileSize;
+        else n_bytes = buffer_size;
+    }
 
     if (debug) printf("Connection closed from %s\n",client_ip);
+    syslog(LOG_INFO,"Closed connection from %s\n\n",client_ip);
+
+    close(new_socket);
+    close(txtfd);
+    free(buffer);
 } //socket_comm
 
 
@@ -182,12 +215,12 @@ static void signal_handler(int signum) {
 	printf("signal handler called\n");
 	switch(signum) {
 		case SIGINT:
-            if (debug) printf("\nSIGINT called, closing aesdsocket application.\n\n");
+            printf("\nSIGINT called, closing aesdsocket application.\n\n");
             system("rm -f /var/tmp/aesdsocketdata");
             closefds(4);
             break;
 		case SIGTERM:
-            if (debug) syslog(LOG_NOTICE, "%s", "SIGTERM called, closing aesdsocket application.");
+            syslog(LOG_NOTICE, "%s", "SIGTERM called, closing aesdsocket application.");
             system("rm -f /var/tmp/aesdsocketdata");
             closefds(4);
             break;
@@ -244,18 +277,17 @@ static void daemonize() {
 } //daemonize
 
 static void closefds(int fd) {
-    switch (fd)
-    {
-    case 4:
-        close(txtfd);
-    case 3:
-        close(new_socket);
-    case 2:
-        close(server_fd);
-    case 1:
-        closelog();
-    default:
-        sleep(1); // Sometime OS keep socket in TIME_WAIT state to handle delayed packets properly.
-        exit(fd);
+    switch (fd) {
+        case 4:
+            close(txtfd);
+        case 3:
+            close(new_socket);
+        case 2:
+            close(server_fd);
+        case 1:
+            closelog();
+        default:
+            sleep(1); // Sometime OS keep socket in TIME_WAIT state to handle delayed packets properly.
+            exit(fd);
     }
 }
