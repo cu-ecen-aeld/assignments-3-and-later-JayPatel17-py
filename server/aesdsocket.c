@@ -413,10 +413,10 @@ static void start_server(int *serverFD, struct sockaddr_in address, int addrlen)
         cnt++; // Max value: MAX_CLIENT
 
     /* 
-    *   One of ptread_join or pthread_detach thread has to use when creating thread.
-    *   If you are using detach thread make sure to close the cliendID in thread function.
-    *   join thread will wait for the thread to finish.
-    *   Check client status function.
+    * One of ptread_join or pthread_detach thread has to use when creating thread.
+    * If you are using detach thread make sure to close the cliendID in thread function.
+    * join thread will wait for the thread to finish.
+    * Check client status function.
     */  
     }
 } //start_server
