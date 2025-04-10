@@ -9,3 +9,6 @@ test.sh.log
 actions-runner/
 # Prevent Linux kernel & busybox repositories from getting re-downloaded over and over
 assignments/assignment3/
+aesdsocket
+server/aesdsocket
+server/valgrind-out.txt
