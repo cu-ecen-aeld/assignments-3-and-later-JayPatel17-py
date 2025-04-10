@@ -185,7 +185,7 @@ static void signal_handler(int signum) {
         DEBUG_PRINT("\nReceived signal: %d (%s)", signum, strsignal(signum));
     closelog();
     remove(dataFILE);
-    _exit(0);
+    exit(0);
 
     // We can setup different actions for different signals using switch case
 } //signal_handler
