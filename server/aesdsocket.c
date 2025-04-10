@@ -196,12 +196,10 @@ static void run_options(int argc, char *argv[]) {
         switch (options) {
             case 'd':
                 daemonize();
-                // start_server(&serverFD, address, addrlen);
                 break;
             case 'v':
                 debug = 1; // By default debug depth with verbose
                 debug = atoi(optarg); // Convert debug value to integer
-                // start_server(&serverFD, address, addrlen);
                 break;
             case 'h':
                 printf( "Usage: ./aesdsocket [OPTION]\n\n"
@@ -218,8 +216,6 @@ static void run_options(int argc, char *argv[]) {
                        "To show this help message:\n"
                        "./aesdsocket -h\n");
                 break;
-            default:
-                // start_server(&serverFD, address, addrlen);
         }
     }
 } //run_options
