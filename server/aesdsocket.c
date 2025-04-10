@@ -190,6 +190,40 @@ static void signal_handler(int signum) {
     // We can setup different actions for different signals using switch case
 } //signal_handler
 
+static void run_options(int argc, char *argv[]) {
+    int options;
+    while ((options = getopt(argc, argv, "dv:h")) != -1) {
+        switch (options) {
+            case 'd':
+                daemonize();
+                // start_server(&serverFD, address, addrlen);
+                break;
+            case 'v':
+                debug = 1; // By default debug depth with verbose
+                debug = atoi(optarg); // Convert debug value to integer
+                // start_server(&serverFD, address, addrlen);
+                break;
+            case 'h':
+                printf( "Usage: ./aesdsocket [OPTION]\n\n"
+                       "Description:\n"
+                       "This program implements a socket server that listens for incoming connections,"
+                       "accepts data from clients, and writes it to a file. It also reads data from the file"
+                       "and sends it back to the clients. The server can run in daemon mode and supports"
+                       "debugging options to control the verbosity of log messages.\n\n"
+                       "Examples:\n"
+                       "To run the server as a daemon:\n"
+                       "./aesdsocket -d\n\n"
+                       "To set the debug level to 1(default: 1, max: 3):\n"
+                       "./aesdsocket -v 1\n\n"
+                       "To show this help message:\n"
+                       "./aesdsocket -h\n");
+                break;
+            default:
+                // start_server(&serverFD, address, addrlen);
+        }
+    }
+} //run_options
+
 static void* timestamping() {
 /*
 *   This function prints timestamp to dataFILE every 10s
@@ -347,14 +381,14 @@ static void start_server(int *serverFD, struct sockaddr_in address, int addrlen)
 *   Remove client from list who completed task
 */
 
-    // Listen for incoming connections.
-    // It can queue up to 5 connections
-    if (listen(*serverFD, 5) < 0) {
-        perror("listen");
-        raise(SIGTERM);
-    }
+    // // Listen for incoming connections.
+    // // It can queue up to 5 connections
+    // if (listen(*serverFD, 5) < 0) {
+    //     perror("listen");
+    //     raise(SIGTERM);
+    // }
+    // DEBUG_PRINT("Server listening on port %d", PORT);
 
-    DEBUG_PRINT("Server listening on port %d", PORT);
     // // Initialize the head of the client list
     // Node* clientList = NULL;
 
@@ -430,6 +464,9 @@ int main(int argc, char *argv[]) {
 *   Starts server for accepting connection
 */
 
+    // Parse command-line arguments (d: demonize, v: verbose(debug), h: help)
+    run_options(argc, argv);
+
     // syslog looger
     openlog("aesdsocket", LOG_PID | LOG_CONS, LOG_USER);
     syslog(LOG_INFO,"%s","aesdsocket application started...");
@@ -478,45 +515,14 @@ int main(int argc, char *argv[]) {
         raise(SIGTERM);
     }
 
-    // // Listen for incoming connections.
-    // // It can queue up to 5 connections
-    // if (listen(serverFD, 5) < 0) {
-    //     perror("listen");
-    //     raise(SIGTERM);
-    // }
-
-    // DEBUG_PRINT("Server listening on port %d", PORT);
-
-    // Parse command-line arguments (v: means v with arguments)
-    while ((opt = getopt(argc, argv, "dv:h")) != -1) {
-        switch (opt) {
-            case 'd':
-                daemonize();
-                start_server(&serverFD, address, addrlen);
-                break;
-            case 'v':
-                debug = 1; // By default debug depth with verbose
-                debug = atoi(optarg); // Convert debug value to integer
-                start_server(&serverFD, address, addrlen);
-                break;
-            case 'h':
-                printf( "Usage: ./aesdsocket [OPTION]\n\n"
-                       "Description:\n"
-                       "This program implements a socket server that listens for incoming connections,"
-                       "accepts data from clients, and writes it to a file. It also reads data from the file"
-                       "and sends it back to the clients. The server can run in daemon mode and supports"
-                       "debugging options to control the verbosity of log messages.\n\n"
-                       "Examples:\n"
-                       "To run the server as a daemon:\n"
-                       "./aesdsocket -d\n\n"
-                       "To set the debug level to 1(default: 1, max: 3):\n"
-                       "./aesdsocket -v 1\n\n"
-                       "To show this help message:\n"
-                       "./aesdsocket -h\n");
-                break;
-            default:
-                start_server(&serverFD, address, addrlen);
-        }
+    // Listen for incoming connections.
+    // It can queue up to 5 connections
+    if (listen(serverFD, 5) < 0) {
+        perror("listen");
+        raise(SIGTERM);
     }
+    if(debug>=1) DEBUG_PRINT("Server listening on port %d", PORT);
+
+    start_server(&serverFD, address, addrlen);
     return 0;
 }
