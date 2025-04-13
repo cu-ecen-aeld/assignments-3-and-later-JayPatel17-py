@@ -18,8 +18,9 @@
     (...) known as ellipsis.
     It is used in variadic function. Which accept list of elements seperated by comma.
     It can be use in function and as macro like below.
+    __VA_ARGS__ represents the variable arguments passed to the macro.
+    ##__VA_ARGS__ is used to handle the case. It removes commas.
 */
-#define DEBUG_PRINT(msg,...) printf( msg "\n" , ##__VA_ARGS__)
 /* 
 For function there are total 4 funciotns
     See below function which has all 4 variadic family funciotns
@@ -34,8 +35,21 @@ For function there are total 4 funciotns
         printf("\n");
     }
 */
+#define DEBUG 0
 
+#if DEBUG
 int debug = 0;
+#define DEBUG_PRINTLN(level,msg,...) \
+    do { \
+        if (debug >= level) { \
+            fprintf(stdout, "%s:%d: " msg "\n", __FILE__, __LINE__, ##__VA_ARGS__); \
+        } \
+    } while (0)   
+#else
+#define DEBUG_PRINTLN(level,msg,...) \
+    do { } while (0)
+#endif
+
 const char *dataFILE = "/var/tmp/aesdsocketdata";
 
 // Initialize the mutex
@@ -64,7 +78,7 @@ typedef struct Node{
 Node* clientList = NULL;
 
 // Function to append a new node at the end of the list
-void append_client(Node** head_ref, client_data new_data) {
+static void append_client(Node** head_ref, client_data new_data) {
 /*
     This function appends a new node at the end of the client list
 */
@@ -89,10 +103,10 @@ void append_client(Node** head_ref, client_data new_data) {
 
     // Append the new node at the end
     last->next = new_node;
-}
+} //append_client
 
 // Function to remove a client from the linked list by clientID
-void remove_client(Node** head_ref, int clientID) {
+static void remove_client(Node** head_ref, int clientID) {
 /*
 *   This function removes a client from the client list
 */
@@ -119,7 +133,25 @@ void remove_client(Node** head_ref, int clientID) {
     prev->next = temp->next;
 
     free(temp); // Free memory
-}
+} //remove_client
+
+static inline void remove_all_clients() {
+/*
+*   This function removes all clients from the client list
+*/
+    Node* current = clientList;
+    Node* next;
+
+    while (current != NULL) {
+        next = current->next;
+        free(current);
+        current = next;
+    }
+
+    clientList = NULL; // Set the head to NULL
+    DEBUG_PRINTLN(1, "All clients removed from the list");
+} //remove_all_clients
+
 static void daemonize() {
 /*
 *   This function used to run this application as daemon
@@ -181,44 +213,16 @@ static void signal_handler(int signum) {
 *   It will also close the syslog and remove the dataFILE
 *   exit(0) will close all fds and cleanup buffers before exiting
 */
-    if(debug>=1) 
-        DEBUG_PRINT("\nReceived signal: %d (%s)", signum, strsignal(signum));
+    
+    DEBUG_PRINTLN(1, "\nReceived signal: %d (%s)", signum, strsignal(signum));
+
     closelog();
     remove(dataFILE);
+    remove_all_clients();
     exit(0);
 
     // We can setup different actions for different signals using switch case
 } //signal_handler
-
-static void run_options(int argc, char *argv[]) {
-    int options;
-    while ((options = getopt(argc, argv, "dv:h")) != -1) {
-        switch (options) {
-            case 'd':
-                daemonize();
-                break;
-            case 'v':
-                debug = 1; // By default debug depth with verbose
-                debug = atoi(optarg); // Convert debug value to integer
-                break;
-            case 'h':
-                printf( "Usage: ./aesdsocket [OPTION]\n\n"
-                       "Description:\n"
-                       "This program implements a socket server that listens for incoming connections,"
-                       "accepts data from clients, and writes it to a file. It also reads data from the file"
-                       "and sends it back to the clients. The server can run in daemon mode and supports"
-                       "debugging options to control the verbosity of log messages.\n\n"
-                       "Examples:\n"
-                       "To run the server as a daemon:\n"
-                       "./aesdsocket -d\n\n"
-                       "To set the debug level to 1(default: 1, max: 3):\n"
-                       "./aesdsocket -v 1\n\n"
-                       "To show this help message:\n"
-                       "./aesdsocket -h\n");
-                break;
-        }
-    }
-} //run_options
 
 static void* timestamping() {
 /*
@@ -265,20 +269,26 @@ static void* client_status(void *arg) {
 // Node** clientList = (Node**)arg; // This way we can pass clinetList if we want to
 
     while (1) {
-        Node* temp = clientList;
         pthread_mutex_lock(&lockFILE);
+        Node* temp = clientList;
+        Node* next = NULL;
+
         while (temp != NULL) {
-            if (temp->data.workDone == 1) {
-                if (debug >= 3) DEBUG_PRINT("Client %d work done", temp->data.ID);
-                pthread_join(temp->data.TID, NULL);
-                close(temp->data.ID);
-                if (debug >= 1) DEBUG_PRINT("Closed client %d connection from IP: %s", temp->data.ID, temp->data.IP);
-                syslog(LOG_INFO, "Closed connection from IP: %s", temp->data.IP);
-                remove_client(&clientList, temp->data.ID);
-            } else {
-                if (debug >= 3) DEBUG_PRINT("Client %d work not done", temp->data.ID);
+            // Skip nodes that are not done
+            if (temp->data.workDone != 1) {
+                DEBUG_PRINTLN(3, "Client %d work not done", temp->data.ID);
+                temp = temp->next;
+                continue;
             }
-            temp = temp->next;
+            
+            DEBUG_PRINTLN(3, "Client %d work done", temp->data.ID);
+            pthread_join(temp->data.TID, NULL);
+            close(temp->data.ID);
+            DEBUG_PRINTLN(1, "Closed client %d connection from IP: %s", temp->data.ID, temp->data.IP);
+            syslog(LOG_INFO, "Closed connection from IP: %s", temp->data.IP);
+            next  = temp->next; // Store the next node
+            remove_client(&clientList, temp->data.ID);
+            temp = next;
         }
         pthread_mutex_unlock(&lockFILE);
         sleep(2); // Sleep for 2 second
@@ -313,33 +323,33 @@ static void* socket_comm(void* args) {
     }
 
     // Read data from client
-    if (debug>=2) DEBUG_PRINT("\n-\n-recv\n-\n");
+    DEBUG_PRINTLN(2, "\n-\n-recv\n-\n");
     memset(bufferRECV, 0, BUFFER_SIZE); // Clear the entire buffer
     bytesRECV = recv(clientData->ID, bufferRECV, BUFFER_SIZE, 0);
     if (bytesRECV == -1) {
         perror("recv");
         raise(SIGTERM);
     }
-    if (debug>=2) DEBUG_PRINT("bytesRECV = %ld\nReceived from client = %s", bytesRECV, bufferRECV);
+    DEBUG_PRINTLN(2, "bytesRECV = %ld\nReceived from client = %s", bytesRECV, bufferRECV);
 
     pthread_mutex_lock(&lockFILE);
     {
         // Write to aesdsocket
-        if (debug>=2) DEBUG_PRINT("\n-\n-write\n-\n");
+        DEBUG_PRINTLN(2, "\n-\n-write\n-\n");
         if ((bytesWRITE = write(fileFD, bufferRECV, bytesRECV)) < 0) {
             perror("write");
             raise(SIGTERM);
         }
-        if (debug>=2) DEBUG_PRINT("bytesWRITE = %ld", bytesWRITE);
+        DEBUG_PRINTLN(2, "bytesWRITE = %ld", bytesWRITE);
         
         // Read from aesdsocket
         // pread function starts reading from position passed. last argument.
-        if (debug>=2) DEBUG_PRINT("\n-\n-read\n-\n");
+        DEBUG_PRINTLN(2, "\n-\n-read\n-\n");
         if ((bytesREAD = pread(fileFD, bufferSEND, BUFFER_SIZE, 0)) < 0) {
             perror("read");
             raise(SIGTERM);
         }
-        if (debug>=2) DEBUG_PRINT("bytesREAD = %ld\nRead from data_file = %s", bytesREAD, bufferSEND);
+        DEBUG_PRINTLN(2, "bytesREAD = %ld\nRead from data_file = %s", bytesREAD, bufferSEND);
     }
     pthread_mutex_unlock(&lockFILE);
 
@@ -350,12 +360,12 @@ static void* socket_comm(void* args) {
     }
 
     // Send data to client
-    if (debug>=2) DEBUG_PRINT("\n-\n-send\n-\n");
+    DEBUG_PRINTLN(2, "\n-\n-send\n-\n");
     if ((bytesSEND = send(clientData->ID, bufferSEND, bytesREAD, 0)) < 0){
         perror("send");
         raise(SIGTERM);
     }
-    if (debug>=2) DEBUG_PRINT("bytesSEND = %ld\nSent to the client = %s", bytesSEND, bufferSEND);
+    DEBUG_PRINTLN(2, "bytesSEND = %ld\nSent to the client = %s", bytesSEND, bufferSEND);
 
     Node* temp = clientList;
     while (temp != NULL) {
@@ -369,24 +379,12 @@ static void* socket_comm(void* args) {
 static void start_server(int *serverFD, struct sockaddr_in address, int addrlen) {
 /*
 *   This function will perform below tasks
-*   Initialize the head of the client list
 *   Start timestamping thread
 *   Accepts connection from client
 *   Creates thread for each client
 *   Starts socket communication
 *   Remove client from list who completed task
 */
-
-    // // Listen for incoming connections.
-    // // It can queue up to 5 connections
-    // if (listen(*serverFD, 5) < 0) {
-    //     perror("listen");
-    //     raise(SIGTERM);
-    // }
-    // DEBUG_PRINT("Server listening on port %d", PORT);
-
-    // // Initialize the head of the client list
-    // Node* clientList = NULL;
 
     // Clinet data
     int cnt = 0; // Max value: MAX_CLIENT
@@ -423,7 +421,7 @@ static void start_server(int *serverFD, struct sockaddr_in address, int addrlen)
         // Convert the IP address to a human-readable form
         inet_ntop(AF_INET, &(address.sin_addr), clientData[cnt].IP, INET_ADDRSTRLEN);
         clientData[cnt].port = ntohs(address.sin_port);
-        if(debug>=1) DEBUG_PRINT("Client %d connected from IP: %s, port: %d", \
+        DEBUG_PRINTLN(1, "Client %d connected from IP: %s, port: %d", \
                                     clientData[cnt].ID, \
                                     clientData[cnt].IP, \
                                     clientData[cnt].port);
@@ -451,6 +449,41 @@ static void start_server(int *serverFD, struct sockaddr_in address, int addrlen)
     }
 } //start_server
 
+static inline void run_options(int argc, char *argv[]) {
+    int options;
+    while ((options = getopt(argc, argv, "dv:h")) != -1) {
+        switch (options) {
+            case 'd':
+                daemonize();
+                break;
+            case 'v':
+                #if DEBUG
+                    debug = 1; // By default debug depth with verbose
+                    debug = atoi(optarg); // Convert debug value to integer
+                #else
+                    fprintf(stdout, "Debugging is disabled in this build.\n");
+                #endif
+                break;
+            case 'h':
+                fprintf(stdout,
+                       "Usage: ./aesdsocket [OPTION]\n\n"
+                       "Description:\n"
+                       "This program implements a socket server that listens for incoming connections,"
+                       "accepts data from clients, and writes it to a file. It also reads data from the file"
+                       "and sends it back to the clients. The server can run in daemon mode and supports"
+                       "debugging options to control the verbosity of log messages.\n\n"
+                       "Examples:\n"
+                       "To run the server as a daemon:\n"
+                       "./aesdsocket -d\n\n"
+                       "To set the debug level to 1(default: 1, max: 3):\n"
+                       "./aesdsocket -v 1\n\n"
+                       "To show this help message:\n"
+                       "./aesdsocket -h\n");
+                break;
+        }
+    }
+} //run_options
+
 int main(int argc, char *argv[]) {
 /*  
 *   This is main funciton of programm. It will perform below tasks
@@ -472,9 +505,9 @@ int main(int argc, char *argv[]) {
     sa.sa_handler = signal_handler;
     sa.sa_flags = 0;
     sigemptyset(&sa.sa_mask);
-	if (sigaction(SIGINT, &sa, NULL) == -1) DEBUG_PRINT("SIGINT signal actions failed to run!!");
-	if (sigaction(SIGTERM, &sa, NULL) == -1) DEBUG_PRINT("SIGTERM: signal actions failed to run!!");
-    if (sigaction(SIGSEGV, &sa, NULL) == -1) DEBUG_PRINT("SIGSEGV: signal actions failed to run!!");
+	if (sigaction(SIGINT, &sa, NULL) == -1) perror("SIGINT signal actions failed to run!!");
+	if (sigaction(SIGTERM, &sa, NULL) == -1) perror("SIGTERM: signal actions failed to run!!");
+    if (sigaction(SIGSEGV, &sa, NULL) == -1) perror("SIGSEGV: signal actions failed to run!!");
     
     // File descriptor
     int serverFD = 0;
@@ -517,7 +550,7 @@ int main(int argc, char *argv[]) {
         perror("listen");
         raise(SIGTERM);
     }
-    if(debug>=1) DEBUG_PRINT("Server listening on port %d", PORT);
+    DEBUG_PRINTLN(1, "Server listening on port %d", PORT);
 
     start_server(&serverFD, address, addrlen);
     return 0;
