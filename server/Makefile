@@ -3,14 +3,13 @@ CFLAGS ?= -g -Wall
 LDFLAGS ?= -lpthread
 TARGETS ?= aesdsocket
 
-# Target rule
 all: $(TARGETS)
 
 %: %.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 clean:
-	rm -f aesdsocket
+	rm -f $(TARGETS)
 
 .PHONY: all clean
 
