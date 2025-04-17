@@ -35,7 +35,7 @@ For function there are total 4 funciotns
         printf("\n");
     }
 */
-#define DEBUG 1
+#define DEBUG 0
 
 #if DEBUG
 int debug = 0;  // By default debug depth with verbose
