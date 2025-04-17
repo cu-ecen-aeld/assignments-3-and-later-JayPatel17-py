@@ -35,10 +35,10 @@ For function there are total 4 funciotns
         printf("\n");
     }
 */
-#define DEBUG 0
+#define DEBUG 1
 
 #if DEBUG
-int debug = 0;
+int debug = 0;  // By default debug depth with verbose
 #define DEBUG_PRINTLN(level,msg,...) \
     do { \
         if (debug >= level) { \
@@ -254,6 +254,7 @@ static void* timestamping() {
             }
         }
         pthread_mutex_unlock(&lockFILE);
+        DEBUG_PRINTLN(0, "%s", bufferTIME);
         sleep(10); // Sleep for 10 seconds
     }
 
@@ -323,7 +324,6 @@ static void* socket_comm(void* args) {
     }
 
     // Read data from client
-    DEBUG_PRINTLN(2, "\n-\n-recv\n-\n");
     memset(bufferRECV, 0, BUFFER_SIZE); // Clear the entire buffer
     bytesRECV = recv(clientData->ID, bufferRECV, BUFFER_SIZE, 0);
     if (bytesRECV == -1) {
@@ -331,11 +331,10 @@ static void* socket_comm(void* args) {
         raise(SIGTERM);
     }
     DEBUG_PRINTLN(2, "bytesRECV = %ld\nReceived from client = %s", bytesRECV, bufferRECV);
-
+    DEBUG_PRINTLN(0, "%s", bufferRECV);
     pthread_mutex_lock(&lockFILE);
     {
         // Write to aesdsocket
-        DEBUG_PRINTLN(2, "\n-\n-write\n-\n");
         if ((bytesWRITE = write(fileFD, bufferRECV, bytesRECV)) < 0) {
             perror("write");
             raise(SIGTERM);
@@ -344,7 +343,6 @@ static void* socket_comm(void* args) {
         
         // Read from aesdsocket
         // pread function starts reading from position passed. last argument.
-        DEBUG_PRINTLN(2, "\n-\n-read\n-\n");
         if ((bytesREAD = pread(fileFD, bufferSEND, BUFFER_SIZE, 0)) < 0) {
             perror("read");
             raise(SIGTERM);
@@ -360,7 +358,6 @@ static void* socket_comm(void* args) {
     }
 
     // Send data to client
-    DEBUG_PRINTLN(2, "\n-\n-send\n-\n");
     if ((bytesSEND = send(clientData->ID, bufferSEND, bytesREAD, 0)) < 0){
         perror("send");
         raise(SIGTERM);
@@ -451,6 +448,8 @@ static void start_server(int *serverFD, struct sockaddr_in address, int addrlen)
 
 static inline void run_options(int argc, char *argv[]) {
     int options;
+    // here v:: means v can have arguments works with getopt_log()
+    // v: (single) means v has have argumets else it will print error message when run code.
     while ((options = getopt(argc, argv, "dv:h")) != -1) {
         switch (options) {
             case 'd':
@@ -458,7 +457,6 @@ static inline void run_options(int argc, char *argv[]) {
                 break;
             case 'v':
                 #if DEBUG
-                    debug = 1; // By default debug depth with verbose
                     debug = atoi(optarg); // Convert debug value to integer
                 #else
                     fprintf(stdout, "Debugging is disabled in this build.\n");
