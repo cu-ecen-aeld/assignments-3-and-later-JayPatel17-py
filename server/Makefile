@@ -1,9 +1,9 @@
 CC ?= $(shell if which ${CROSS_COMPILE} > /dev/null 2>&1; then echo "${CROSS_COMPILE}"; else echo "${CROSS_COMPILE}gcc"; fi )
 CFLAGS ?= -g -Wall
 LDFLAGS ?= -lpthread
-TARGETS ?= aesdsocket
+OBJS ?= aesdsocket
 # Target rule
-all: ${TARGETS}
+all: ${OBJS}
 
 %: %.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
