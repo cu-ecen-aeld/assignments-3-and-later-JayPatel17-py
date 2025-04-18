@@ -1,3 +1,4 @@
+CC ?= $(CROSS_COMPILE)gcc
 CFLAGS ?= -g -Wall
 LDFLAGS ?= -lpthread
 TARGETS ?= aesdsocket
