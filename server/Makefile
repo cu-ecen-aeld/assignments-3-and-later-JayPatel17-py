@@ -1,15 +1,23 @@
+# Ensure CROSS_COMPILE is defined for cross-compiling
 CC ?= $(CROSS_COMPILE)gcc
 CFLAGS ?= -g -Wall
 LDFLAGS ?= -lpthread
-TARGETS ?= aesdsocket
+TARGET ?= aesdsocket
+OBJS ?= aesdsocket.o
 
-all: $(TARGETS)
+# Default target
+all: $(TARGET)
 
-%: %.c
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+# Build the target executable
+$(TARGET): $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
+# Compile each .c file into .o object file
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Clean up build artifacts
 clean:
-	rm -f $(TARGETS)
+	rm -f $(TARGET) *.o
 
 .PHONY: all clean
-
