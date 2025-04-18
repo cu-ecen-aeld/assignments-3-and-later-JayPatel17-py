@@ -323,31 +323,42 @@ static void* socket_comm(void* args) {
         raise(SIGTERM);
     }
 
-    // Read data from client
-    memset(bufferRECV, 0, BUFFER_SIZE); // Clear the entire buffer
-    bytesRECV = recv(clientData->ID, bufferRECV, BUFFER_SIZE, 0);
-    if (bytesRECV == -1) {
-        perror("recv");
-        raise(SIGTERM);
-    }
-    DEBUG_PRINTLN(2, "bytesRECV = %ld\nReceived from client = %s", bytesRECV, bufferRECV);
-    DEBUG_PRINTLN(0, "%s", bufferRECV);
-    pthread_mutex_lock(&lockFILE);
+    pthread_mutex_unlock(&lockFILE);
     {
         // Write to aesdsocket
-        if ((bytesWRITE = write(fileFD, bufferRECV, bytesRECV)) < 0) {
-            perror("write");
-            raise(SIGTERM);
+        while ((bytesRECV = recv(clientData->ID, bufferRECV, BUFFER_SIZE, 0)) > 0) {
+            DEBUG_PRINTLN(2, "bytesRECV = %ld\nReceived from client = %s", bytesRECV, bufferRECV);
+            DEBUG_PRINTLN(0, "%s", bufferRECV);
+            if ((bytesWRITE = write(fileFD, bufferRECV, bytesRECV)) < 0) {
+                perror("write");
+                raise(SIGTERM);
+            }
+            DEBUG_PRINTLN(2, "bytesWRITE = %ld", bytesWRITE);
+            
+            // exit and return true as first '\n' encounters
+            if (strchr(bufferRECV, '\n')) {
+                // if (bufferRECV[bytesRECV-1] == '\n') {
+                fsync(fileFD);
+                memset(bufferRECV, 0, BUFFER_SIZE); // Clear the entire buffer
+                break;
+            }
+            fsync(fileFD);
+            memset(bufferRECV, 0, BUFFER_SIZE); // Clear the entire buffer
         }
-        DEBUG_PRINTLN(2, "bytesWRITE = %ld", bytesWRITE);
         
+        lseek(fileFD, 0, SEEK_SET);
+
         // Read from aesdsocket
-        // pread function starts reading from position passed. last argument.
-        if ((bytesREAD = pread(fileFD, bufferSEND, BUFFER_SIZE, 0)) < 0) {
-            perror("read");
-            raise(SIGTERM);
+        while ((bytesREAD = read(fileFD, bufferSEND, BUFFER_SIZE)) > 0) {
+            DEBUG_PRINTLN(2, "bytesREAD = %ld", bytesREAD);
+            // Send data to client
+            if ((bytesSEND = send(clientData->ID, bufferSEND, bytesREAD, 0)) < 0){
+                perror("send");
+                raise(SIGTERM);
+            }
+            DEBUG_PRINTLN(2, "bytesSEND = %ld\nSent to the client = %s", bytesSEND, bufferSEND);
+            memset(bufferSEND, 0, BUFFER_SIZE); // Clear the entire buffer
         }
-        DEBUG_PRINTLN(2, "bytesREAD = %ld\nRead from data_file = %s", bytesREAD, bufferSEND);
     }
     pthread_mutex_unlock(&lockFILE);
 
@@ -357,18 +368,14 @@ static void* socket_comm(void* args) {
         raise(SIGTERM);
     }
 
-    // Send data to client
-    if ((bytesSEND = send(clientData->ID, bufferSEND, bytesREAD, 0)) < 0){
-        perror("send");
-        raise(SIGTERM);
-    }
-    DEBUG_PRINTLN(2, "bytesSEND = %ld\nSent to the client = %s", bytesSEND, bufferSEND);
-
     Node* temp = clientList;
     while (temp != NULL) {
         if (temp->data.ID == clientData->ID) temp->data.workDone = 1;
         temp = temp->next;
     }
+
+    //Closing data file
+    close(fileFD);
 
     return NULL;
 } //socket_comm
