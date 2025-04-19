@@ -139,17 +139,21 @@ static inline void remove_all_clients() {
 /*
 *   This function removes all clients from the client list
 */
-    Node* current = clientList;
-    Node* next;
+    pthread_mutex_lock(&lockLIST);
+    {
+        Node* current = clientList;
+        Node* next;
 
-    while (current != NULL) {
-        next = current->next;
-        free(current);
-        current = next;
+        while (current != NULL) {
+            next = current->next;
+            free(current);
+            current = next;
+        }
+
+        clientList = NULL; // Set the head to NULL
+        DEBUG_PRINTLN(1, "All clients removed from the list");
     }
-
-    clientList = NULL; // Set the head to NULL
-    DEBUG_PRINTLN(1, "All clients removed from the list");
+    pthread_mutex_unlock(&lockLIST);
 } //remove_all_clients
 
 static void daemonize() {
@@ -234,7 +238,7 @@ static void* timestamping() {
     int fileFD;
 
     // Open dataFILE file
-    if ((fileFD = open(dataFILE, O_RDWR | O_SYNC | O_APPEND | O_CREAT , 0664)) < 0) {
+    if ((fileFD = open(dataFILE, O_RDWR | O_APPEND | O_CREAT , 0664)) < 0) {
         perror("[socket_comm] open");
         raise(SIGTERM);
     }
@@ -252,6 +256,7 @@ static void* timestamping() {
                 perror("write");
                 raise(SIGTERM);
             }
+            fsync(fileFD);
         }
         pthread_mutex_unlock(&lockFILE);
         DEBUG_PRINTLN(0, "%s", bufferTIME);
@@ -270,7 +275,7 @@ static void* client_status(void *arg) {
 // Node** clientList = (Node**)arg; // This way we can pass clinetList if we want to
 
     while (1) {
-        pthread_mutex_lock(&lockFILE);
+        pthread_mutex_lock(&lockLIST);
         Node* temp = clientList;
         Node* next = NULL;
 
@@ -291,8 +296,8 @@ static void* client_status(void *arg) {
             remove_client(&clientList, temp->data.ID);
             temp = next;
         }
-        pthread_mutex_unlock(&lockFILE);
-        sleep(2); // Sleep for 2 second
+        pthread_mutex_unlock(&lockLIST);
+        sleep(2); // Sleep for 10 second
     }
 
     return NULL;
@@ -308,9 +313,7 @@ static void* socket_comm(void* args) {
     client_data* clientData = (client_data*)args;
 
     ssize_t bytesRECV;
-    ssize_t bytesWRITE;
     ssize_t bytesREAD;
-    ssize_t bytesSEND;
     
     char bufferRECV[BUFFER_SIZE];
     char bufferSEND[BUFFER_SIZE];
@@ -318,7 +321,7 @@ static void* socket_comm(void* args) {
     int fileFD;
 
     // Open dataFILE file
-    if ((fileFD = open(dataFILE, O_RDWR | O_SYNC | O_APPEND | O_CREAT , 0664)) < 0) {
+    if ((fileFD = open(dataFILE, O_RDWR | O_APPEND | O_CREAT , 0664)) < 0) {
         perror("[socket_comm] open");
         raise(SIGTERM);
     }
@@ -326,45 +329,41 @@ static void* socket_comm(void* args) {
     // Read data from client
     pthread_mutex_lock(&lockFILE);
     {
+        // Append new data to dataFILE
+        lseek(fileFD, 0, SEEK_END);
         if ((bytesRECV = recv(clientData->ID, bufferRECV, BUFFER_SIZE, 0)) > 0) {
             DEBUG_PRINTLN(0, "%s", bufferRECV);
+
             // Write to aesdsocket
-            if (write(fileFD, bufferRECV, bytesRECV) < 0) {
-                perror("write");
-                raise(SIGTERM);
-            }
+            write(fileFD, bufferRECV, bytesRECV);
+
             fsync(fileFD);
             memset(bufferRECV, 0, BUFFER_SIZE); // Clear the entire buffer
         }
         
-        lseek(fileFD, 0, SEEK_SET);
-        
         // Read from aesdsocket
+        lseek(fileFD, 0, SEEK_SET);
         while ((bytesREAD = read(fileFD, bufferSEND, BUFFER_SIZE)) > 0) {
             // Send data to client
-            if ((send(clientData->ID, bufferSEND, bytesREAD, 0)) < 0){
-                perror("send");
-                raise(SIGTERM);
-            }
+            send(clientData->ID, bufferSEND, bytesREAD, 0);
+
             memset(bufferSEND, 0, BUFFER_SIZE); // Clear the entire buffer
         }
     }
     pthread_mutex_unlock(&lockFILE);
 
-    fileFD = close(fileFD);
-    if (fileFD < 0) {
-        perror("close");
-        raise(SIGTERM);
-    }
-
-    Node* temp = clientList;
-    while (temp != NULL) {
-        if (temp->data.ID == clientData->ID) temp->data.workDone = 1;
-        temp = temp->next;
-    }
-
-    //Closing data file
+    // Close dataFILE
     close(fileFD);
+
+    pthread_mutex_lock(&lockLIST);
+    {
+        Node* temp = clientList;
+        while (temp != NULL) {
+            if (temp->data.ID == clientData->ID) temp->data.workDone = 1;
+            temp = temp->next;
+        }
+    }
+    pthread_mutex_unlock(&lockLIST);
 
     return NULL;
 } //socket_comm
