@@ -363,6 +363,9 @@ static void* socket_comm(void* args) {
         temp = temp->next;
     }
 
+    //Closing data file
+    close(fileFD);
+
     return NULL;
 } //socket_comm
 
