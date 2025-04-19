@@ -324,30 +324,30 @@ static void* socket_comm(void* args) {
     }
 
     // Read data from client
-    memset(bufferRECV, 0, BUFFER_SIZE); // Clear the entire buffer
-    bytesRECV = recv(clientData->ID, bufferRECV, BUFFER_SIZE, 0);
-    if (bytesRECV == -1) {
-        perror("recv");
-        raise(SIGTERM);
-    }
-    DEBUG_PRINTLN(2, "bytesRECV = %ld\nReceived from client = %s", bytesRECV, bufferRECV);
-    DEBUG_PRINTLN(0, "%s", bufferRECV);
     pthread_mutex_lock(&lockFILE);
     {
-        // Write to aesdsocket
-        if ((bytesWRITE = write(fileFD, bufferRECV, bytesRECV)) < 0) {
-            perror("write");
-            raise(SIGTERM);
+        if ((bytesRECV = recv(clientData->ID, bufferRECV, BUFFER_SIZE, 0)) > 0) {
+            DEBUG_PRINTLN(0, "%s", bufferRECV);
+            // Write to aesdsocket
+            if (write(fileFD, bufferRECV, bytesRECV) < 0) {
+                perror("write");
+                raise(SIGTERM);
+            }
+            fsync(fileFD);
+            memset(bufferRECV, 0, BUFFER_SIZE); // Clear the entire buffer
         }
-        DEBUG_PRINTLN(2, "bytesWRITE = %ld", bytesWRITE);
+        
+        lseek(fileFD, 0, SEEK_SET);
         
         // Read from aesdsocket
-        // pread function starts reading from position passed. last argument.
-        if ((bytesREAD = pread(fileFD, bufferSEND, BUFFER_SIZE, 0)) < 0) {
-            perror("read");
-            raise(SIGTERM);
+        while ((bytesREAD = read(fileFD, bufferSEND, BUFFER_SIZE)) > 0) {
+            // Send data to client
+            if ((send(clientData->ID, bufferSEND, bytesREAD, 0)) < 0){
+                perror("send");
+                raise(SIGTERM);
+            }
+            memset(bufferSEND, 0, BUFFER_SIZE); // Clear the entire buffer
         }
-        DEBUG_PRINTLN(2, "bytesREAD = %ld\nRead from data_file = %s", bytesREAD, bufferSEND);
     }
     pthread_mutex_unlock(&lockFILE);
 
@@ -356,13 +356,6 @@ static void* socket_comm(void* args) {
         perror("close");
         raise(SIGTERM);
     }
-
-    // Send data to client
-    if ((bytesSEND = send(clientData->ID, bufferSEND, bytesREAD, 0)) < 0){
-        perror("send");
-        raise(SIGTERM);
-    }
-    DEBUG_PRINTLN(2, "bytesSEND = %ld\nSent to the client = %s", bytesSEND, bufferSEND);
 
     Node* temp = clientList;
     while (temp != NULL) {
